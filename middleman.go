@@ -110,7 +110,22 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		}
 		msg.Client = &client
 		log.Println("MSG:", msg)
-		go handlers[msg.Cmd](&msg)
+		switch msg.Cmd {
+		case "PUB":
+			go handlePub(&msg)
+		case "SUB":
+			go handleSub(&msg)
+		case "REQ":
+			go handleReq(&msg)
+		case "RES":
+			go handleRes(&msg)
+		case "EPUB":
+			go handleEpub(&msg)
+		case "ESUB":
+			go handleEsub(&msg)
+		case "EREQ":
+			go handleEreq(&msg)
+		}
 	}
 	close(client.Quit)
 }
@@ -121,7 +136,6 @@ func main() {
 	http.HandleFunc("/", handleWebSocket)
 	upgrader.CheckOrigin = func(request *http.Request) bool { return true }
 	log.Println("Starting server on", *addr, "with trusted key", *trustedKey)
-	connectHandlerFunctions()
 	err := http.ListenAndServe(*addr, nil)
 	if err != nil {
 		log.Fatalln(err)

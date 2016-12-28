@@ -4,28 +4,28 @@ import (
 	"bytes"
 	"log"
 	"strconv"
-	"sync"
+	"sync/atomic"
 
+	"github.com/antlinker/go-cmap"
 	"github.com/tjgq/broadcast"
 )
 
-var safePubKeys = make(map[string]bool)
-var safeSubKeys = make(map[string]bool)
-var reqMux, idMux, resMux, subMux, keyMux sync.Mutex
-var handlers = make(map[string]func(*Message))
-var subscribers = make(map[string]*broadcast.Broadcaster)
-var responders = make(map[string]chan []byte)
+var safePubKeys = cmap.NewConcurrencyMap()
+var safeSubKeys = cmap.NewConcurrencyMap()
+var subscribers = cmap.NewConcurrencyMap()
+var responders = cmap.NewConcurrencyMap()
 var requestId uint64 = 0
-var requests = make(map[uint64]*Client)
+var requests = cmap.NewConcurrencyMap()
 
 func getBroadcastChannel(key string) *broadcast.Broadcaster {
-	subMux.Lock()
-	bc, exists := subscribers[key]
-	if !exists {
+	var bc *broadcast.Broadcaster
+	obj, err := subscribers.Get(key)
+	if err != nil {
 		bc = broadcast.New(8)
-		subscribers[key] = bc
+		subscribers.Set(key, bc)
+	} else {
+		bc = obj.(*broadcast.Broadcaster)
 	}
-	subMux.Unlock()
 	return bc
 }
 
@@ -76,13 +76,11 @@ func handlePub(message *Message) {
 	bc.Send(marshalMessage(message))
 }
 
-func messageIsTrusted(message *Message, safeKeys map[string]bool) bool {
+func messageIsTrusted(message *Message, safeKeys cmap.ConcurrencyMap) bool {
 	if message.Client.IsTrusted {
 		return true
 	}
-	keyMux.Lock()
-	defer keyMux.Unlock()
-	if val, ok := safeKeys[message.Key]; val && ok {
+	if val, err := safeKeys.Get(message.Key); err == nil && val.(bool) {
 		return true
 	}
 	return false
@@ -92,17 +90,14 @@ func handleReq(message *Message) {
 	if !messageIsTrusted(message, safePubKeys) {
 		sendError(message.Client, "Not trusted:"+message.Key)
 	}
-	resMux.Lock()
-	responder, ok := responders[message.Key]
-	resMux.Unlock()
-	if !ok {
+	obj, err := responders.Get(message.Key)
+	if err != nil {
 		sendError(message.Client, "No responder for: "+message.Key)
 	} else {
-		reqMux.Lock()
-		message.Header.Set("ReqID", string(requestId))
-		requests[requestId] = message.Client
-		requestId += 1
-		reqMux.Unlock()
+		reqID := atomic.AddUint64(&requestId, 1)
+		message.Header.Set("ReqID", string(reqID))
+		requests.Set(reqID, message.Client)
+		responder := obj.(chan []byte)
 		responder <- marshalMessage(message)
 	}
 }
@@ -116,26 +111,27 @@ func handleRes(message *Message) {
 	if err != nil {
 		return
 	}
-	reqMux.Lock()
-	client, ok := requests[reqID]
-	if !ok {
+	obj, err := requests.Remove(reqID)
+	if err != nil {
 		sendError(message.Client, "No client for request ID ")
 	} else {
 		message.Header.Del("ReqID")
+		client := obj.(Client)
 		client.Outbox <- marshalMessage(message)
 	}
-	reqMux.Unlock()
 }
 
 func handleEreq(message *Message) {
 	if message.Client.IsTrusted {
-		resMux.Lock()
-		c, ok := responders[message.Key]
-		if !ok {
+		var c chan []byte
+		obj, err := responders.Get(message.Key)
+		if err != nil {
 			c = make(chan []byte)
-			responders[message.Key] = c
+			responders.Set(message.Key, c)
+		} else {
+			c = obj.(chan []byte)
 		}
-		resMux.Unlock()
+		safePubKeys.Set(message.Key, true)
 		for {
 			select {
 			case m, ok := <-c:
@@ -154,9 +150,7 @@ func handleEreq(message *Message) {
 
 func handleEpub(message *Message) {
 	if message.Client.IsTrusted {
-		keyMux.Lock()
-		safePubKeys[message.Key] = true
-		keyMux.Unlock()
+		safePubKeys.Set(message.Key, true)
 	} else {
 		sendError(message.Client, "Not trusted.")
 	}
@@ -164,9 +158,7 @@ func handleEpub(message *Message) {
 
 func handleEsub(message *Message) {
 	if message.Client.IsTrusted {
-		keyMux.Lock()
-		safeSubKeys[message.Key] = true
-		keyMux.Unlock()
+		safeSubKeys.Set(message.Key, true)
 	} else {
 		sendError(message.Client, "Not trusted.")
 	}
@@ -175,14 +167,4 @@ func handleEsub(message *Message) {
 func sendError(client *Client, txt string) {
 	msg := Message{Cmd: "PUB", Key: "ERROR", Body: []byte(txt)}
 	client.Outbox <- marshalMessage(&msg)
-}
-
-func connectHandlerFunctions() {
-	handlers["PUB"] = handlePub
-	handlers["SUB"] = handleSub
-	handlers["REQ"] = handleReq
-	handlers["RES"] = handleRes
-	handlers["EPUB"] = handleEpub
-	handlers["ESUB"] = handleEsub
-	handlers["EREQ"] = handleEreq
 }
