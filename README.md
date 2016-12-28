@@ -8,23 +8,25 @@ quickly integrated into a running cluster of services.
 
 This is the middleman protocol.
 
-1. When a client connects to middleman, the first message is the API key.
+1. When a client connects to middleman, the the first message is the API key.
 
 A servce API key enables all messages, a client API key only enables
 messages that a service has explicitly enabled.
 
 Eg:
-"""MyServerKey"""
+```
+MyServerKey
+```
 
 2. Each message then follows this structure:
 
-"""
+```
 COMMAND TARGET
 Header:Value
 
 Body 
 .
-"""
+```
 
 Note that the message body is terminated with a single dot and newline, just like SMTP.
 
@@ -46,27 +48,27 @@ are always sent to the same service, allowing for services to retain state
 if required.
 
 
-
-                           +------------------+
-                           |                  |          +--------------+
-+-------------+      +-----+-------+  +-------------+----+  Service #1  |
-|  Client #1  +------+  Client Key |  | Server Key  |    +--------------+
-+-------------+      |             |  |             |
-                     |             |  |             |
-                     ++-+----------+  +----------+-++
-                      | |  |                  |  | |     +--------------+
-                      | |  |                  |  | +-----+  Service #2  |
-+-------------+       | |  |     MiddleMan    |  |       +--------------+
-|  Client #2  +-------+ |  |                  |  |
-+-------------+         |  |                  |  |
-                        |  +------------------+  |
-                        |                        |       +--------------+
-                        |                        +-------+  Service #N  |
-                        |                                +--------------+
-+-------------+         |
-|  Client #N  +---------+
-+-------------+
-
+ 
+                             +------------------+
+                             |                  |          +--------------+
+  +-------------+      +-----+-------+  +-------------+----+  Service #1  |
+  |  Client #1  +------+  Client Key |  | Server Key  |    +--------------+
+  +-------------+      |             |  |             |
+                       |             |  |             |
+                       ++-+----------+  +----------+-++
+                        | |  |                  |  | |     +--------------+
+                        | |  |                  |  | +-----+  Service #2  |
+  +-------------+       | |  |     MiddleMan    |  |       +--------------+
+  |  Client #2  +-------+ |  |                  |  |
+  +-------------+         |  |                  |  |
+                          |  +------------------+  |
+                          |                        |       +--------------+
+                          |                        +-------+  Service #N  |
+                          |                                +--------------+
+  +-------------+         |
+  |  Client #N  +---------+
+  +-------------+
+ 
 
      PUB #Name                                           EPUB #Name
      #Body
