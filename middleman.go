@@ -29,6 +29,7 @@ type Message struct {
 
 var addr = flag.String("addr", "localhost:8080", "service address")
 var trustedKey = flag.String("key", "xyzzy", "trusted client key")
+var untrustedKey = flag.String("publickey", "plugh", "untrusted, public client key")
 
 var upgrader = websocket.Upgrader{}
 
@@ -68,7 +69,11 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	client := Client{}
 	client.Conn = c
 	client.Outbox = make(chan []byte)
-	client.IsTrusted = string(payload) == *trustedKey
+	key := string(payload)
+	client.IsTrusted = key == *trustedKey
+	if !client.IsTrusted && key != *untrustedKey {
+		return
+	}
 	client.Quit = make(chan bool)
 	go handleOutgoing(&client)
 
@@ -135,7 +140,9 @@ func main() {
 	log.SetFlags(0)
 	http.HandleFunc("/", handleWebSocket)
 	upgrader.CheckOrigin = func(request *http.Request) bool { return true }
-	log.Println("Starting server on", *addr, "with trusted key", *trustedKey)
+	log.Println("Starting server on:", *addr)
+	log.Println("Trusted key:", *trustedKey)
+	log.Println("Untrusted key:", *untrustedKey)
 	err := http.ListenAndServe(*addr, nil)
 	if err != nil {
 		log.Fatalln(err)
