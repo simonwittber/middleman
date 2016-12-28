@@ -34,12 +34,18 @@ Note that the message body is terminated with a single dot and newline, just lik
 
 PUB: Publish a message with a name (target). Message is received by 
  all subscribers.
+
 SUB: Request that all published messages of (target) are delivered.
+
 REQ: Request something from a service. Must have ReqID header. This 
  is delivered to only one service, even if multiple services have subscribed to the target.
+
 RES: Respond to a request. Must have a ReqID header.
+
 EPUB: Allow clients to publish to this target.
+
 EREQ: Allow clients to request from this target.
+
 ESUB: Allow clients to subscribe to this target.
 
 A PUB command distributes to all services and clients. A REQ command
@@ -74,9 +80,7 @@ if required.
      #Body
                                                          ESUB #Name
      SUB #Name
-
-     UNS #Name
-
+                                                         EREQ #Name
      REQ #Name
      #Body
 
