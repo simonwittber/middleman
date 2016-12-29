@@ -20,7 +20,7 @@ var requests = cmap.NewConcurrencyMap()
 func getBroadcastChannel(key string) *broadcast.Broadcaster {
 	var bc *broadcast.Broadcaster
 	obj, err := subscribers.Get(key)
-	if err != nil {
+	if err != nil || obj == nil {
 		bc = broadcast.New(8)
 		subscribers.Set(key, bc)
 	} else {
@@ -80,7 +80,7 @@ func messageIsTrusted(message *Message, safeKeys cmap.ConcurrencyMap) bool {
 	if message.Client.IsTrusted {
 		return true
 	}
-	if val, err := safeKeys.Get(message.Key); err == nil && val.(bool) {
+	if val, err := safeKeys.Get(message.Key); err == nil && val != null && val.(bool) {
 		return true
 	}
 	return false
@@ -91,7 +91,7 @@ func handleReq(message *Message) {
 		sendError(message.Client, "Not trusted:"+message.Key)
 	}
 	obj, err := responders.Get(message.Key)
-	if err != nil {
+	if err != nil || obj == nil {
 		sendError(message.Client, "No responder for: "+message.Key)
 	} else {
 		reqID := atomic.AddUint64(&requestId, 1)
@@ -125,7 +125,7 @@ func handleEreq(message *Message) {
 	if message.Client.IsTrusted {
 		var c chan []byte
 		obj, err := responders.Get(message.Key)
-		if err != nil {
+		if err != nil || obj == nil {
 			c = make(chan []byte)
 			responders.Set(message.Key, c)
 		} else {
