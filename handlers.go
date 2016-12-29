@@ -10,8 +10,8 @@ import (
 	"github.com/tjgq/broadcast"
 )
 
-var safePubKeys = cmap.NewConcurrencyMap()
-var safeSubKeys = cmap.NewConcurrencyMap()
+var safePubKeys = NewStringSet()
+var safeSubKeys = NewStringSet()
 var subscribers = cmap.NewConcurrencyMap()
 var responders = cmap.NewConcurrencyMap()
 var requestId uint64 = 0
@@ -76,11 +76,11 @@ func handlePub(message *Message) {
 	bc.Send(marshalMessage(message))
 }
 
-func messageIsTrusted(message *Message, safeKeys cmap.ConcurrencyMap) bool {
+func messageIsTrusted(message *Message, safeKeys StringSet) bool {
 	if message.Client.IsTrusted {
 		return true
 	}
-	if val, err := safeKeys.Get(message.Key); err == nil && val != null && val.(bool) {
+	if safeKeys.Contains(String(message.Key)) {
 		return true
 	}
 	return false
@@ -131,7 +131,7 @@ func handleEreq(message *Message) {
 		} else {
 			c = obj.(chan []byte)
 		}
-		safePubKeys.Set(message.Key, true)
+		safePubKeys.Add(String(message.Key))
 		for {
 			select {
 			case m, ok := <-c:
@@ -150,7 +150,7 @@ func handleEreq(message *Message) {
 
 func handleEpub(message *Message) {
 	if message.Client.IsTrusted {
-		safePubKeys.Set(message.Key, true)
+		safePubKeys.Add(String(message.Key))
 	} else {
 		sendError(message.Client, "Not trusted.")
 	}
@@ -158,7 +158,7 @@ func handleEpub(message *Message) {
 
 func handleEsub(message *Message) {
 	if message.Client.IsTrusted {
-		safeSubKeys.Set(message.Key, true)
+		safeSubKeys.Add(String(message.Key))
 	} else {
 		sendError(message.Client, "Not trusted.")
 	}
