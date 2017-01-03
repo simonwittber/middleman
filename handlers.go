@@ -7,11 +7,12 @@ import (
 	"sync/atomic"
 
 	"github.com/antlinker/go-cmap"
+	"github.com/simonwittber/go-string-set"
 	"github.com/tjgq/broadcast"
 )
 
-var safePubKeys = NewStringSet()
-var safeSubKeys = NewStringSet()
+var safePubKeys = atomicstring.NewStringSet()
+var safeSubKeys = atomicstring.NewStringSet()
 var subscribers = cmap.NewConcurrencyMap()
 var responders = cmap.NewConcurrencyMap()
 var requestId uint64 = 0
@@ -76,11 +77,11 @@ func handlePub(message *Message) {
 	bc.Send(marshalMessage(message))
 }
 
-func messageIsTrusted(message *Message, safeKeys StringSet) bool {
+func messageIsTrusted(message *Message, safeKeys atomicstring.StringSet) bool {
 	if message.Client.IsTrusted {
 		return true
 	}
-	if safeKeys.Contains(String(message.Key)) {
+	if safeKeys.Contains(message.Key) {
 		return true
 	}
 	return false
@@ -131,7 +132,7 @@ func handleEreq(message *Message) {
 		} else {
 			c = obj.(chan []byte)
 		}
-		safePubKeys.Add(String(message.Key))
+		safePubKeys.Add(message.Key)
 		for {
 			select {
 			case m, ok := <-c:
@@ -150,7 +151,7 @@ func handleEreq(message *Message) {
 
 func handleEpub(message *Message) {
 	if message.Client.IsTrusted {
-		safePubKeys.Add(String(message.Key))
+		safePubKeys.Add(message.Key)
 	} else {
 		sendError(message.Client, "Not trusted.")
 	}
@@ -158,7 +159,7 @@ func handleEpub(message *Message) {
 
 func handleEsub(message *Message) {
 	if message.Client.IsTrusted {
-		safeSubKeys.Add(String(message.Key))
+		safeSubKeys.Add(message.Key)
 	} else {
 		sendError(message.Client, "Not trusted.")
 	}
