@@ -27,7 +27,7 @@ type Message struct {
 	Client *Client
 }
 
-var addr = flag.String("addr", "localhost:8080", "service address")
+var addr = flag.String("addr", "localhost:8765", "service address")
 var trustedKey = flag.String("key", "xyzzy", "trusted client key")
 var untrustedKey = flag.String("publickey", "plugh", "untrusted, public client key")
 
@@ -37,7 +37,8 @@ func handleOutgoing(client *Client) {
 	for {
 		select {
 		case _, _ = <-client.Quit:
-			break
+			log.Println("client.Quit")
+			return
 		case msg, ok := <-client.Outbox:
 			if !ok {
 				return
@@ -55,7 +56,7 @@ func handleOutgoing(client *Client) {
 func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	c, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Print("upgrade:", err)
+		log.Println("upgrade:", err)
 		return
 	}
 	defer c.Close()
@@ -64,6 +65,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if mt != websocket.TextMessage {
+		log.Println("Not TextMessage")
 		return
 	}
 	client := Client{}

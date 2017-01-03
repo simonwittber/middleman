@@ -73,6 +73,7 @@ func handlePub(message *Message) {
 	if !messageIsTrusted(message, safeSubKeys) {
 		sendError(message.Client, "Not trusted:"+message.Key)
 	}
+	log.Println("X")
 	bc := getBroadcastChannel(message.Key)
 	bc.Send(marshalMessage(message))
 }
