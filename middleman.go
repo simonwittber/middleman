@@ -28,7 +28,8 @@ type Message struct {
 }
 
 var addr = flag.String("addr", "localhost:8765", "service address")
-var trustedKey = flag.String("key", "xyzzy", "trusted client key")
+var trustedKey = flag.String("trustedkey", "xyzzy", "trusted client key")
+var superKey = flag.String("superkey", "jabberwocky", "trusted super key, receives all messages")
 var untrustedKey = flag.String("publickey", "plugh", "untrusted, public client key")
 
 var upgrader = websocket.Upgrader{}
@@ -145,6 +146,7 @@ func main() {
 	log.Println("Starting server on:", *addr)
 	log.Println("Trusted key:", *trustedKey)
 	log.Println("Untrusted key:", *untrustedKey)
+	log.Println("Super key:", *superKey)
 	err := http.ListenAndServe(*addr, nil)
 	if err != nil {
 		log.Fatalln(err)
