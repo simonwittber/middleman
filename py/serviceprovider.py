@@ -14,12 +14,6 @@ class ServiceProvider:
         self.ws = ws
         self.public_pub_events = []
     #------------------------------------------------------------------------ 
-    async def getSession(self, headers):
-        return await self.req("GET_SESSION", SesID=headers["SesID"])
-    #------------------------------------------------------------------------ 
-    async def saveSession(self, session):
-        return await self.req("SET_SESSION", session)
-    #------------------------------------------------------------------------ 
     async def subscribe_to_events(self): 
         for name in dir(self):
             value = getattr(self, name)
@@ -131,6 +125,9 @@ async def service(service_provider_class):
             await asyncio.sleep(5)
             ws = None 
     await ws.send(SERVER_KEY)
+    ok = await ws.recv()
+    if ok != "MM OK":
+        raise Exception("Bad Key")
     ws.outbox = asyncio.Queue()
     send_task = asyncio.ensure_future(handle_outgoing_queue(ws))
     sp = service_provider_class()

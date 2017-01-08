@@ -60,6 +60,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		log.Println("upgrade:", err)
 		return
 	}
+	log.Println("New WebSocket Connection")
 	defer c.Close()
 	mt, payload, err := c.ReadMessage()
 	if err != nil {
@@ -74,9 +75,12 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	client.Outbox = make(chan []byte)
 	key := string(payload)
 	client.IsTrusted = key == *trustedKey
+	log.Println("New Client", client)
 	if !client.IsTrusted && key != *untrustedKey {
+		log.Println("Bad Key", client)
 		return
 	}
+	client.Conn.WriteMessage(websocket.TextMessage, []byte("MM OK"))
 	client.Quit = make(chan bool)
 	go handleOutgoing(&client)
 
