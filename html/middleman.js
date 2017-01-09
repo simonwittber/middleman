@@ -6,7 +6,7 @@ var MiddleMan = {
         var ws = new WebSocket(wsUri);
         ws.onopen = MiddleMan.onopen;
         ws.onclose = MiddleMan.onclose;
-        ws.onmessage = MiddleMan.onmessage;
+        ws.onmessage = MiddleMan.onfirstmessage;
         ws.onerror = MiddleMan.onerror;
         MiddleMan.ws = ws;
     }, 
@@ -53,11 +53,18 @@ var MiddleMan = {
     onopen : function (evt) {
         console.log(MiddleMan);
         MiddleMan.ws.send(MiddleMan.ApiKey);
-        MiddleMan.Publish("HELLO");
     },
 
     onclose : function (evt) {
     },
+
+    onfirstmessage : function(evt) {
+        if(evt.data == "MM OK") {
+            MiddleMan.ws.onmessage = MiddleMan.onmessage
+        } else {
+            console.log("Bad Key")
+        }
+    }, 
 
     onmessage : function(evt) {
         var lines = evt.data.split("\n");
@@ -69,7 +76,11 @@ var MiddleMan = {
             var parts = H.split(":");
             headers[parts.shift().trim()] = parts.join(":").trim();
         }
-        var body = lines.join("\n");
+        var body = ""
+        for(var line in lines) {
+            if(line == ".") break
+            body += line + "\n"
+        }
         var cmd = A[0].trim();
         var name = A[1].trim();
         switch(cmd) {
