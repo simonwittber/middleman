@@ -1,13 +1,13 @@
 package main
 
 import (
-	"bytes"
 	"log"
 	"strconv"
 	"sync/atomic"
 
 	"github.com/antlinker/go-cmap"
 	"github.com/simonwittber/go-string-set"
+	"github.com/simonwittber/middleman"
 	"github.com/tjgq/broadcast"
 )
 
@@ -30,7 +30,7 @@ func getBroadcastChannel(key string) *broadcast.Broadcaster {
 	return bc
 }
 
-func handleSub(message *Message) {
+func handleSub(message *middleman.Message) {
 	if !messageIsTrusted(message, safeSubKeys) {
 		sendError(message.Client, "Not trusted:"+message.Key)
 	}
@@ -50,34 +50,15 @@ func handleSub(message *Message) {
 	}
 }
 
-func marshalMessage(message *Message) []byte {
-	var b bytes.Buffer
-	b.Write([]byte(message.Cmd))
-	b.Write([]byte(" "))
-	b.Write([]byte(message.Key))
-	b.Write([]byte("\r\n"))
-	for k := range message.Header {
-		for _, v := range message.Header[k] {
-			b.Write([]byte(k))
-			b.Write([]byte(": "))
-			b.Write([]byte(v))
-			b.Write([]byte("\r\n"))
-		}
-	}
-	b.Write([]byte("\r\n"))
-	b.Write(message.Body)
-	return b.Bytes()
-}
-
-func handlePub(message *Message) {
+func handlePub(message *middleman.Message) {
 	if !messageIsTrusted(message, safeSubKeys) {
 		sendError(message.Client, "Not trusted:"+message.Key)
 	}
 	bc := getBroadcastChannel(message.Key)
-	bc.Send(marshalMessage(message))
+	bc.Send(middleman.Marshal(message))
 }
 
-func messageIsTrusted(message *Message, safeKeys atomicstring.StringSet) bool {
+func messageIsTrusted(message *middleman.Message, safeKeys atomicstring.StringSet) bool {
 	if message.Client.IsTrusted {
 		return true
 	}
@@ -87,7 +68,7 @@ func messageIsTrusted(message *Message, safeKeys atomicstring.StringSet) bool {
 	return false
 }
 
-func handleReq(message *Message) {
+func handleReq(message *middleman.Message) {
 	if !messageIsTrusted(message, safePubKeys) {
 		sendError(message.Client, "Not trusted:"+message.Key)
 	}
@@ -99,11 +80,11 @@ func handleReq(message *Message) {
 		message.Header.Set("ReqID", string(reqID))
 		requests.Set(reqID, message.Client)
 		responder := obj.(chan []byte)
-		responder <- marshalMessage(message)
+		responder <- middleman.Marshal(message)
 	}
 }
 
-func handleRes(message *Message) {
+func handleRes(message *middleman.Message) {
 	if !messageIsTrusted(message, safePubKeys) {
 		sendError(message.Client, "Not trusted:"+message.Key)
 	}
@@ -117,12 +98,12 @@ func handleRes(message *Message) {
 		sendError(message.Client, "No client for request ID ")
 	} else {
 		message.Header.Del("ReqID")
-		client := obj.(Client)
-		client.Outbox <- marshalMessage(message)
+		client := obj.(middleman.Client)
+		client.Outbox <- middleman.Marshal(message)
 	}
 }
 
-func handleEreq(message *Message) {
+func handleEreq(message *middleman.Message) {
 	if message.Client.IsTrusted {
 		var c chan []byte
 		obj, err := responders.Get(message.Key)
@@ -149,7 +130,7 @@ func handleEreq(message *Message) {
 	}
 }
 
-func handleEpub(message *Message) {
+func handleEpub(message *middleman.Message) {
 	if message.Client.IsTrusted {
 		safePubKeys.Add(message.Key)
 	} else {
@@ -157,7 +138,7 @@ func handleEpub(message *Message) {
 	}
 }
 
-func handleEsub(message *Message) {
+func handleEsub(message *middleman.Message) {
 	if message.Client.IsTrusted {
 		safeSubKeys.Add(message.Key)
 	} else {
@@ -165,7 +146,7 @@ func handleEsub(message *Message) {
 	}
 }
 
-func sendError(client *Client, txt string) {
-	msg := Message{Cmd: "PUB", Key: "ERROR", Body: []byte(txt)}
-	client.Outbox <- marshalMessage(&msg)
+func sendError(client *middleman.Client, txt string) {
+	msg := middleman.Message{Cmd: "PUB", Key: "ERROR", Body: []byte(txt)}
+	client.Outbox <- middleman.Marshal(&msg)
 }

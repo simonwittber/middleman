@@ -1,41 +1,29 @@
-package main
+package middleman
 
 import (
-	"bytes"
-	"flag"
 	"log"
-	"net/textproto"
 
 	"github.com/gorilla/websocket"
+	"github.com/simonwittber/middleman"
 )
 
-var addr = flag.String("addr", "ws://localhost:8765/", "middleman service address")
-var key = flag.String("key", "xyzzy", "middleman API key")
-
 type MiddlemanClient struct {
-	Conn     *websocket.Conn
-	Incoming chan []byte
-	Outgoing chan []byte
-	Quit     chan bool
+	Conn        *websocket.Conn
+	PubHandlers *HandlerFuncAtomicMap
+	ReqHandlers *HandlerFuncAtomicMap
+	Outgoing    chan []byte
+	Quit        chan bool
 }
 
-func (mmc MiddlemanClient) Send(cmd string, key string, header textproto.MIMEHeader, body []byte) {
-	var buf = bytes.Buffer{}
-	top := cmd + " " + key + "\r\n"
-	buf.WriteString(top)
-	if header != nil {
-		for k, vs := range header {
-			for _, v := range vs {
-				buf.WriteString(k + ": " + v + "\r\n")
-			}
-		}
-	}
-	buf.WriteString("\r\n")
-	if body != nil {
-		buf.Write(body)
-	}
-	buf.WriteString("\r\n.\r\n")
-	mmc.Outgoing <- buf.Bytes()
+// +gen atomicmap
+type HandlerFunc func(*middleman.Message)
+
+func (mmc MiddlemanClient) RegisterReqHandler(key string, fn HandlerFunc) {
+	mmc.ReqHandlers.Set(key, fn)
+}
+
+func (mmc MiddlemanClient) RegisterPubHandler(key string, fn HandlerFunc) {
+	mmc.PubHandlers.Set(key, fn)
 }
 
 func NewMiddlemanClient(u string, key string) MiddlemanClient {
@@ -43,7 +31,9 @@ func NewMiddlemanClient(u string, key string) MiddlemanClient {
 	if err != nil {
 		log.Fatal("dial:", err)
 	}
-	mmc := MiddlemanClient{Conn: c, Incoming: make(chan []byte), Outgoing: make(chan []byte), Quit: make(chan bool)}
+	mmc := MiddlemanClient{Conn: c, Outgoing: make(chan []byte), Quit: make(chan bool)}
+	mmc.PubHandlers = NewHandlerFuncAtomicMap()
+	mmc.ReqHandlers = NewHandlerFuncAtomicMap()
 	c.WriteMessage(websocket.TextMessage, []byte(key))
 	_, msg, err := c.ReadMessage()
 	if err != nil {
@@ -54,12 +44,12 @@ func NewMiddlemanClient(u string, key string) MiddlemanClient {
 	} else {
 		log.Println("Key accepted.")
 	}
-	go HandleIncoming(mmc)
-	go HandleOutgoing(mmc)
+	go handleIncoming(mmc)
+	go handleOutgoing(mmc)
 	return mmc
 }
 
-func HandleOutgoing(mmc MiddlemanClient) {
+func handleOutgoing(mmc MiddlemanClient) {
 	for {
 		select {
 		case _, closed := <-mmc.Quit:
@@ -73,7 +63,7 @@ func HandleOutgoing(mmc MiddlemanClient) {
 	}
 }
 
-func HandleIncoming(mmc MiddlemanClient) {
+func handleIncoming(mmc MiddlemanClient) {
 	defer mmc.Conn.Close()
 	defer close(mmc.Quit)
 	for {
@@ -84,7 +74,7 @@ func HandleIncoming(mmc MiddlemanClient) {
 				return
 			}
 		default:
-			mt, message, err := mmc.Conn.ReadMessage()
+			mt, payload, err := mmc.Conn.ReadMessage()
 			if err != nil {
 				log.Println("read:", err)
 				return
@@ -93,20 +83,24 @@ func HandleIncoming(mmc MiddlemanClient) {
 				log.Println("Not TextMessage:", mt)
 				return
 			}
-			mmc.Incoming <- message
+			msg, err := middleman.Unmarshal(payload)
+			if err != nil {
+				log.Fatalln(err)
+				return
+			}
+
+			if msg.Cmd == "PUB" {
+				fn, ok := mmc.PubHandlers.Get(msg.Key)
+				if ok {
+					fn(msg)
+				}
+			}
+			if msg.Cmd == "REQ" {
+				fn, ok := mmc.ReqHandlers.Get(msg.Key)
+				if ok {
+					fn(msg)
+				}
+			}
 		}
 	}
-}
-
-func main() {
-	flag.Parse()
-	log.SetFlags(0)
-
-	mmc := NewMiddlemanClient(*addr, *key)
-	mmc.Send("PUB", "BOOYA", nil, nil)
-	log.Println(mmc)
-	msg := <-mmc.Incoming
-	log.Println(msg)
-	log.Println("Bye.")
-
 }
