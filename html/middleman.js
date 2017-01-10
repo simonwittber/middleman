@@ -1,8 +1,9 @@
 
 var MiddleMan = {
-    ApiKey : "be4e5ef3-af59-4bec-a5a6-245b4594443f", 
 
-    Connect : function(wsUri) {
+    ApiKey: "be4e5ef3-af59-4bec-a5a6-245b4594443f", 
+
+    Connect: function(wsUri) {
         var ws = new WebSocket(wsUri);
         ws.onopen = MiddleMan.onopen;
         ws.onclose = MiddleMan.onclose;
@@ -11,7 +12,7 @@ var MiddleMan = {
         MiddleMan.ws = ws;
     }, 
 
-    Publish : function(name, headers, body) {
+    Publish: function(name, headers, body) {
         if(headers === null) headers = {};
         var msg = "PUB " + name + "\r\n" + MiddleMan.formatHeaders(headers) + "\r\n" + body + "\r\n.\r\n";
         MiddleMan.ws.send(msg);
@@ -33,7 +34,7 @@ var MiddleMan = {
         MiddleMan.ws.send(msg);
     },
 
-    formatHeaders : function(headers) {
+    formatHeaders: function(headers) {
         var txt = "";
         if(headers) {
             for(var k in headers) {
@@ -43,22 +44,22 @@ var MiddleMan = {
         return txt;
     },
 
-    guid : function() {
+    guid: function() {
         function s4() {
             return Math.floor((1 + Math.random()) * 0x10000).toString(16).substring(1);
         }
         return s4() + s4() + '-' + s4() + '-' + s4() + '-' + s4() + '-' + s4() + s4() + s4();
     },
 
-    onopen : function (evt) {
+    onopen: function (evt) {
         console.log(MiddleMan);
         MiddleMan.ws.send(MiddleMan.ApiKey);
     },
 
-    onclose : function (evt) {
+    onclose: function (evt) {
     },
 
-    onfirstmessage : function(evt) {
+    onfirstmessage: function(evt) {
         if(evt.data == "MM OK") {
             MiddleMan.ws.onmessage = MiddleMan.onmessage
         } else {
@@ -66,7 +67,7 @@ var MiddleMan = {
         }
     }, 
 
-    onmessage : function(evt) {
+    onmessage: function(evt) {
         var lines = evt.data.split("\n");
         var A = lines.shift().split(" ");
         var headers = {};
@@ -100,13 +101,13 @@ var MiddleMan = {
         }
     },
 
-    onerror : function(evt) {
+    onerror: function(evt) {
         console.log("Error: " + evt);
     },
 
-    requests : {},
+    requests: {},
 
-    subscriptions : {},
+    subscriptions: {},
 
 }
 
