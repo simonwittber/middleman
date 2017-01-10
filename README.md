@@ -8,6 +8,7 @@ quickly integrated into a running cluster of services.
 
 This is the middleman protocol.
 
+
 1. When a client connects to middleman, the the first message is the API key.
 
 A servce API key enables all messages, a client API key only enables
@@ -17,6 +18,15 @@ Eg:
 ```
 MyServerKey
 ```
+
+The middleman will then respond with:
+
+```
+MM OK
+```
+
+if the key was accepted. If the key is not accepted, the connection is closed.
+
 
 2. Each message then follows this structure:
 
@@ -29,6 +39,7 @@ Body
 ```
 
 Note that the message body is terminated with a single dot and newline, just like SMTP.
+
 
 3. Commands are:
 
@@ -49,9 +60,7 @@ EREQ: Allow clients to request from this target.
 ESUB: Allow clients to subscribe to this target.
 
 A PUB command distributes to all services and clients. A REQ command
-is effectively load balanced between any waiting services. REQ commands
-are always sent to the same service, allowing for services to retain state
-if required.
+is effectively load balanced between any waiting services.
 
 
 <pre> 
