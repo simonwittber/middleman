@@ -107,7 +107,6 @@ func main() {
 	log.Println(mmc)
 	msg := <-mmc.Incoming
 	log.Println(msg)
-	return
 	log.Println("Bye.")
 
 }
