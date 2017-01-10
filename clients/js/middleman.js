@@ -52,7 +52,6 @@ var MiddleMan = {
     },
 
     onopen: function (evt) {
-        console.log(MiddleMan);
         MiddleMan.ws.send(MiddleMan.ApiKey);
     },
 
@@ -61,6 +60,7 @@ var MiddleMan = {
 
     onfirstmessage: function(evt) {
         if(evt.data == "MM OK") {
+            console.log("MiddleMan is ready.")
             MiddleMan.ws.onmessage = MiddleMan.onmessage
         } else {
             console.log("Bad Key")
@@ -87,7 +87,7 @@ var MiddleMan = {
         switch(cmd) {
             case "PUB":
                 var fn = MiddleMan.subscriptions[name];
-                if(fn !== null) fn(headers, body);
+                if(fn != null) fn(headers, body);
             break;
             case "RES":
                 var fn = MiddleMan.requests[headers["ReqID"]];

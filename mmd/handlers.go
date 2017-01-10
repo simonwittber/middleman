@@ -3,9 +3,9 @@ package main
 import (
 	"log"
 	"strconv"
+	"sync"
 	"sync/atomic"
 
-	"github.com/antlinker/go-cmap"
 	"github.com/simonwittber/go-string-set"
 	"github.com/simonwittber/middleman"
 	"github.com/tjgq/broadcast"
@@ -13,19 +13,22 @@ import (
 
 var safePubKeys = atomicstring.NewStringSet()
 var safeSubKeys = atomicstring.NewStringSet()
-var subscribers = cmap.NewConcurrencyMap()
-var responders = cmap.NewConcurrencyMap()
+var subscribers = make(map[string]*broadcast.Broadcaster)
+var subscribersMutex sync.Mutex
+var responders = make(map[string]chan []byte)
+var respondersMutex sync.Mutex
 var requestId uint64 = 0
-var requests = cmap.NewConcurrencyMap()
+var requests = make(map[uint64]*middleman.Client)
+var requestMutex sync.Mutex
 
 func getBroadcastChannel(key string) *broadcast.Broadcaster {
+	subscribersMutex.Lock()
+	defer subscribersMutex.Unlock()
 	var bc *broadcast.Broadcaster
-	obj, err := subscribers.Get(key)
-	if err != nil || obj == nil {
+	bc, ok := subscribers[key]
+	if !ok || bc == nil {
 		bc = broadcast.New(8)
-		subscribers.Set(key, bc)
-	} else {
-		bc = obj.(*broadcast.Broadcaster)
+		subscribers[key] = bc
 	}
 	return bc
 }
@@ -72,14 +75,17 @@ func handleReq(message *middleman.Message) {
 	if !messageIsTrusted(message, safePubKeys) {
 		sendError(message.Client, "Not trusted:"+message.Key)
 	}
-	obj, err := responders.Get(message.Key)
-	if err != nil || obj == nil {
+	respondersMutex.Lock()
+	responder, ok := responders[message.Key]
+	respondersMutex.Unlock()
+	if !ok || responder == nil {
 		sendError(message.Client, "No responder for: "+message.Key)
 	} else {
 		reqID := atomic.AddUint64(&requestId, 1)
 		message.Header.Set("ReqID", string(reqID))
-		requests.Set(reqID, message.Client)
-		responder := obj.(chan []byte)
+		requestMutex.Lock()
+		requests[reqID] = message.Client
+		requestMutex.Unlock()
 		responder <- middleman.Marshal(message)
 	}
 }
@@ -93,12 +99,16 @@ func handleRes(message *middleman.Message) {
 	if err != nil {
 		return
 	}
-	obj, err := requests.Remove(reqID)
-	if err != nil {
+	requestMutex.Lock()
+	client, ok := requests[reqID]
+	if ok {
+		delete(requests, reqID)
+	}
+	requestMutex.Unlock()
+	if !ok {
 		sendError(message.Client, "No client for request ID ")
 	} else {
 		message.Header.Del("ReqID")
-		client := obj.(middleman.Client)
 		client.Outbox <- middleman.Marshal(message)
 	}
 }
@@ -106,13 +116,13 @@ func handleRes(message *middleman.Message) {
 func handleEreq(message *middleman.Message) {
 	if message.Client.IsTrusted {
 		var c chan []byte
-		obj, err := responders.Get(message.Key)
-		if err != nil || obj == nil {
+		respondersMutex.Lock()
+		c, ok := responders[message.Key]
+		if !ok || c == nil {
 			c = make(chan []byte)
-			responders.Set(message.Key, c)
-		} else {
-			c = obj.(chan []byte)
+			responders[message.Key] = c
 		}
+		respondersMutex.Unlock()
 		safePubKeys.Add(message.Key)
 		for {
 			select {
