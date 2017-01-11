@@ -4,8 +4,11 @@ import (
 	"flag"
 	"log"
 	"net/http"
+	"time"
 
+	metrics "github.com/rcrowley/go-metrics"
 	"github.com/simonwittber/middleman"
+	influxdb "github.com/vrischmann/go-metrics-influxdb"
 
 	"github.com/gorilla/websocket"
 )
@@ -38,6 +41,7 @@ func handleOutgoing(client *middleman.Client) {
 }
 
 func handleWebSocket(w http.ResponseWriter, r *http.Request) {
+	counter := metrics.GetOrRegisterCounter("Connections", nil)
 	c, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println("upgrade:", err)
@@ -65,6 +69,8 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 	client.Conn.WriteMessage(websocket.TextMessage, []byte("MM OK"))
 	client.Quit = make(chan bool)
+	counter.Inc(1)
+	defer counter.Inc(-1)
 	go handleOutgoing(&client)
 
 	for {
@@ -107,6 +113,14 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 func main() {
 	flag.Parse()
 	log.SetFlags(0)
+	go influxdb.InfluxDB(
+		metrics.DefaultRegistry, // metrics registry
+		time.Second*10,          // interval
+		"http://localhost:8086", // the InfluxDB url
+		"mydbv",                 // your InfluxDB database
+		"myuser",                // your InfluxDB user
+		"mypassword",            // your InfluxDB password
+	)
 	http.HandleFunc("/", handleWebSocket)
 	upgrader.CheckOrigin = func(request *http.Request) bool { return true }
 	log.Println("Starting server on:", *addr)
