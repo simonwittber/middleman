@@ -6,6 +6,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// Service is the connection from a service provider to the MM server.
 type Service struct {
 	conn        *websocket.Conn
 	pubHandlers *HandlerFuncAtomicMap
@@ -17,22 +18,28 @@ type Service struct {
 // +gen atomicmap
 type HandlerFunc func(*Message)
 
+// Register a HandlerFunc to be called when REQ is received.
 func (mmc Service) RegisterReqHandler(key string, fn HandlerFunc) {
 	mmc.reqHandlers.Set(key, fn)
 }
 
+// Register a HandlerFunc to be called when PUB is received.
 func (mmc Service) RegisterPubHandler(key string, fn HandlerFunc) {
 	mmc.pubHandlers.Set(key, fn)
 }
 
+// Stop the service and disconnect,
 func (mmc Service) Stop() {
 	close(mmc.quit)
 }
 
+// Send a message from the service to the MM server.
 func (mmc Service) Send(msg *Message) {
 	mmc.outgoing <- Marshal(msg)
 }
 
+// NewService creates a connection to an MM server using a websocket
+// URL, eg ws://localhost:8765/
 func NewService(u string, key string) Service {
 	c, _, err := websocket.DefaultDialer.Dial(u, nil)
 	if err != nil {

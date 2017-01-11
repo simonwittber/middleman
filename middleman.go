@@ -11,6 +11,8 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// Client is used by the MM server to hold information about client
+// connections from trusted service providers and untrusted clients.
 type Client struct {
 	Conn      *websocket.Conn
 	Outbox    chan []byte
@@ -18,6 +20,8 @@ type Client struct {
 	Quit      chan bool
 }
 
+// Message represents the protocol used for MM communication over the
+// websocket.
 type Message struct {
 	Cmd    string
 	Key    string
@@ -26,6 +30,7 @@ type Message struct {
 	Client *Client
 }
 
+// Unmarshal turns a []byte into a *Message.
 func Unmarshal(payload []byte) (*Message, error) {
 	br := bytes.NewReader(payload)
 	rd := bufio.NewReader(br)
@@ -56,6 +61,7 @@ func Unmarshal(payload []byte) (*Message, error) {
 	return &msg, nil
 }
 
+// Marshal turns a *Message into a []byte
 func Marshal(message *Message) []byte {
 	var b bytes.Buffer
 	b.Write([]byte(message.Cmd))
