@@ -1,6 +1,7 @@
 package middleman
 
 import (
+	"errors"
 	"log"
 
 	"github.com/gorilla/websocket"
@@ -8,11 +9,14 @@ import (
 
 // Service is the connection from a service provider to the MM server.
 type Service struct {
+	url         string
+	key         string
 	conn        *websocket.Conn
 	pubHandlers *HandlerFuncAtomicMap
 	reqHandlers *HandlerFuncAtomicMap
 	outgoing    chan []byte
 	quit        chan bool
+	Closed      chan bool
 }
 
 // +gen atomicmap
@@ -40,29 +44,39 @@ func (mmc Service) Send(msg *Message) {
 	mmc.outgoing <- Marshal(msg)
 }
 
-// NewService creates a connection to an MM server using a websocket
-// URL, eg ws://localhost:8765/
-func NewService(u string, key string) Service {
-	c, _, err := websocket.DefaultDialer.Dial(u, nil)
+func (mmc Service) Connect() error {
+	c, _, err := websocket.DefaultDialer.Dial(mmc.url, nil)
 	if err != nil {
 		log.Fatal("dial:", err)
 	}
-	mmc := Service{conn: c, outgoing: make(chan []byte), quit: make(chan bool)}
-	mmc.pubHandlers = NewHandlerFuncAtomicMap()
-	mmc.reqHandlers = NewHandlerFuncAtomicMap()
-	c.WriteMessage(websocket.TextMessage, []byte(key))
+	mmc.conn = c
+	mmc.quit = make(chan bool)
+	c.WriteMessage(websocket.TextMessage, []byte(mmc.key))
 	_, msg, err := c.ReadMessage()
 	if err != nil {
 		log.Println("read: ", err)
+		return err
 	}
 	if string(msg) != "MM OK" {
 		log.Println("Key not accepted.")
+		return errors.New("Bad Key")
 	} else {
 		log.Println("Key accepted.")
 	}
 	go handleIncoming(mmc)
 	go handleOutgoing(mmc)
-	return mmc
+	return nil
+
+}
+
+// NewService creates a connection to an MM server using a websocket
+// URL, eg ws://localhost:8765/
+func NewService(u string, key string) (Service, error) {
+	mmc := Service{url: u, key: key, outgoing: make(chan []byte)}
+	mmc.pubHandlers = NewHandlerFuncAtomicMap()
+	mmc.reqHandlers = NewHandlerFuncAtomicMap()
+	err := mmc.Connect()
+	return mmc, err
 }
 
 func handleOutgoing(mmc Service) {
@@ -93,15 +107,18 @@ func handleIncoming(mmc Service) {
 			mt, payload, err := mmc.conn.ReadMessage()
 			if err != nil {
 				log.Println("read:", err)
+				mmc.Closed <- true
 				return
 			}
 			if mt != websocket.TextMessage {
 				log.Println("Not TextMessage:", mt)
+				mmc.Closed <- true
 				return
 			}
 			msg, err := Unmarshal(payload)
 			if err != nil {
 				log.Fatalln(err)
+				mmc.Closed <- true
 				return
 			}
 
