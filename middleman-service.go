@@ -21,11 +21,13 @@ type HandlerFunc func(*Message)
 // Register a HandlerFunc to be called when REQ is received.
 func (mmc Service) RegisterReqHandler(key string, fn HandlerFunc) {
 	mmc.reqHandlers.Set(key, fn)
+	mmc.outgoing <- Marshal(&Message{Cmd: "EREQ", Key: key})
 }
 
 // Register a HandlerFunc to be called when PUB is received.
 func (mmc Service) RegisterPubHandler(key string, fn HandlerFunc) {
 	mmc.pubHandlers.Set(key, fn)
+	mmc.outgoing <- Marshal(&Message{Cmd: "EPUB", Key: key})
 }
 
 // Stop the service and disconnect,

@@ -4,11 +4,9 @@ import (
 	"flag"
 	"log"
 	"net/http"
-	"time"
 
 	metrics "github.com/rcrowley/go-metrics"
 	"github.com/simonwittber/middleman"
-	influxdb "github.com/vrischmann/go-metrics-influxdb"
 
 	"github.com/gorilla/websocket"
 )
@@ -107,20 +105,21 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			go handleEreq(msg)
 		}
 	}
+	handleClose(&client)
 	close(client.Quit)
 }
 
 func main() {
 	flag.Parse()
 	log.SetFlags(0)
-	go influxdb.InfluxDB(
+	/*go influxdb.InfluxDB(
 		metrics.DefaultRegistry, // metrics registry
 		time.Second*10,          // interval
 		"http://localhost:8086", // the InfluxDB url
 		"mydbv",                 // your InfluxDB database
 		"myuser",                // your InfluxDB user
 		"mypassword",            // your InfluxDB password
-	)
+	)*/
 	http.HandleFunc("/", handleWebSocket)
 	upgrader.CheckOrigin = func(request *http.Request) bool { return true }
 	log.Println("Starting server on:", *addr)
