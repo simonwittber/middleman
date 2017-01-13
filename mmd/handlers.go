@@ -53,7 +53,7 @@ func handleSub(message *middleman.Message) {
 	timer := metrics.GetOrRegisterTimer("handlers.SUB", nil)
 	timer.Time(func() {
 		if !messageIsTrusted(message, safeSubKeys) {
-			sendError(message.Client, "Not trusted:"+message.Key)
+			sendError(message.Client, "Not trusted:", message)
 		}
 		if addSubscription(message.Client, message.Key) {
 			bc := getBroadcastChannel(message.Key)
@@ -66,8 +66,8 @@ func handleSub(message *middleman.Message) {
 func handlePub(message *middleman.Message) {
 	timer := metrics.GetOrRegisterTimer("handlers.PUB", nil)
 	timer.Time(func() {
-		if !messageIsTrusted(message, safeSubKeys) {
-			sendError(message.Client, "Not trusted:"+message.Key)
+		if !messageIsTrusted(message, safePubKeys) {
+			sendError(message.Client, "Not trusted", message)
 		}
 		bc := getBroadcastChannel(message.Key)
 		bytes := middleman.Marshal(message)
@@ -91,13 +91,13 @@ func handleReq(message *middleman.Message) {
 	timer := metrics.GetOrRegisterTimer("handlers.REQ", nil)
 	timer.Time(func() {
 		if !messageIsTrusted(message, safePubKeys) {
-			sendError(message.Client, "Not trusted:"+message.Key)
+			sendError(message.Client, "Not trusted", message)
 		}
 		respondersMutex.Lock()
 		responder, ok := responders[message.Key]
 		respondersMutex.Unlock()
 		if !ok || responder == nil {
-			sendError(message.Client, "No responder for: "+message.Key)
+			sendError(message.Client, "No responder for", message)
 		} else {
 			reqID := atomic.AddUint64(&requestId, 1)
 			message.Header.Set("ReqID", string(reqID))
@@ -113,7 +113,7 @@ func handleRes(message *middleman.Message) {
 	timer := metrics.GetOrRegisterTimer("handlers.RES", nil)
 	timer.Time(func() {
 		if !messageIsTrusted(message, safePubKeys) {
-			sendError(message.Client, "Not trusted:"+message.Key)
+			sendError(message.Client, "Not trusted", message)
 		}
 
 		reqID, err := strconv.ParseUint(message.Header.Get("ReqID"), 10, 64)
@@ -127,7 +127,7 @@ func handleRes(message *middleman.Message) {
 		}
 		requestMutex.Unlock()
 		if !ok {
-			sendError(message.Client, "No client for request ID ")
+			sendError(message.Client, "No client for request ID ", message)
 		} else {
 			message.Header.Del("ReqID")
 			client.Outbox <- middleman.Marshal(message)
@@ -160,7 +160,7 @@ func handleEreq(message *middleman.Message) {
 				}
 			}
 		} else {
-			sendError(message.Client, "Not trusted:"+message.Key)
+			sendError(message.Client, "Not trusted", message)
 		}
 	})
 }
@@ -169,9 +169,10 @@ func handleEpub(message *middleman.Message) {
 	timer := metrics.GetOrRegisterTimer("handlers.EPUB", nil)
 	timer.Time(func() {
 		if message.Client.IsTrusted {
+			log.Println("Enabling Publish for Key: " + message.Key)
 			safePubKeys.Add(message.Key)
 		} else {
-			sendError(message.Client, "Not trusted.")
+			sendError(message.Client, "Not trusted", message)
 		}
 	})
 }
@@ -182,14 +183,14 @@ func handleEsub(message *middleman.Message) {
 		if message.Client.IsTrusted {
 			safeSubKeys.Add(message.Key)
 		} else {
-			sendError(message.Client, "Not trusted.")
+			sendError(message.Client, "Not trusted", message)
 		}
 	})
 }
 
-func sendError(client *middleman.Client, txt string) {
-	msg := middleman.Message{Cmd: "PUB", Key: "ERROR", Body: []byte(txt)}
-	client.Outbox <- middleman.Marshal(&msg)
+func sendError(client *middleman.Client, txt string, msg *middleman.Message) {
+	m := middleman.Message{Cmd: "PUB", Key: "ERROR", Body: []byte(txt + " " + msg.Cmd + " " + msg.Key)}
+	client.Outbox <- middleman.Marshal(&m)
 }
 
 func handleClose(client *middleman.Client) {

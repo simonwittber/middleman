@@ -7,9 +7,12 @@ var MiddleMan = {
         var ws = new WebSocket(wsUri);
         ws.onopen = MiddleMan.onopen;
         ws.onclose = MiddleMan.onclose;
-        ws.onmessage = MiddleMan.onfirstmessage;
+        ws.onmessage = MiddleMan._onfirstmessage;
         ws.onerror = MiddleMan.onerror;
         MiddleMan.ws = ws;
+        MiddleMan.subscriptions["ERROR"] = function(headers, message) {
+            console.log("ERROR RCVD: " + message)
+        }
     }, 
 
     Publish: function(name, headers, body) {
@@ -58,16 +61,16 @@ var MiddleMan = {
     onclose: function (evt) {
     },
 
-    onfirstmessage: function(evt) {
+    _onfirstmessage: function(evt) {
         if(evt.data == "MM OK") {
             console.log("MiddleMan is ready.")
-            MiddleMan.ws.onmessage = MiddleMan.onmessage
+            MiddleMan.ws.onmessage = MiddleMan._onmessage
         } else {
             console.log("Bad Key")
         }
     }, 
 
-    onmessage: function(evt) {
+    _onmessage: function(evt) {
         var lines = evt.data.split("\n");
         var A = lines.shift().split(" ");
         var headers = {};
@@ -78,7 +81,8 @@ var MiddleMan = {
             headers[parts.shift().trim()] = parts.join(":").trim();
         }
         var body = ""
-        for(var line in lines) {
+        for(var i in lines) {
+            var line = lines[i].trim();
             if(line == ".") break
             body += line + "\n"
         }
