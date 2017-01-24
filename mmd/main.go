@@ -4,15 +4,15 @@ import (
 	"flag"
 	"log"
 	"net/http"
-	"time"
 
 	metrics "github.com/rcrowley/go-metrics"
+	"github.com/rcrowley/go-metrics/exp"
 	"github.com/simonwittber/middleman"
-	influxdb "github.com/vrischmann/go-metrics-influxdb"
 
 	"github.com/gorilla/websocket"
 )
 
+var exposeMetrics = flag.String("metrics", "y", "expose metrics on /debug/metrics")
 var addr = flag.String("addr", "localhost:8765", "service address")
 var trustedKey = flag.String("trustedkey", "xyzzy", "trusted client key")
 var superKey = flag.String("superkey", "jabberwocky", "trusted super key, receives all messages")
@@ -113,20 +113,18 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 func main() {
 	flag.Parse()
 	log.SetFlags(0)
-	go influxdb.InfluxDB(
-		metrics.DefaultRegistry, // metrics registry
-		time.Second*10,          // interval
-		"http://localhost:8086", // the InfluxDB url
-		"mydbv",                 // your InfluxDB database
-		"myuser",                // your InfluxDB user
-		"mypassword",            // your InfluxDB password
-	)
-	http.HandleFunc("/", handleWebSocket)
+
 	upgrader.CheckOrigin = func(request *http.Request) bool { return true }
 	log.Println("Starting server on:", *addr)
 	log.Println("Trusted key:", *trustedKey)
 	log.Println("Untrusted key:", *untrustedKey)
 	log.Println("Super key:", *superKey)
+	if *exposeMetrics == "y" {
+		//This exposes metrics on /debug/metrics
+		exp.Exp(metrics.DefaultRegistry)
+		log.Println("Exposing metrics: http://" + *addr + "/debug/metrics")
+	}
+	http.HandleFunc("/", handleWebSocket)
 	err := http.ListenAndServe(*addr, nil)
 	if err != nil {
 		log.Fatalln(err)
