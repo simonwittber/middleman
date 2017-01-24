@@ -5,11 +5,10 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/gorilla/websocket"
 	metrics "github.com/rcrowley/go-metrics"
 	"github.com/rcrowley/go-metrics/exp"
 	"github.com/simonwittber/middleman"
-
-	"github.com/gorilla/websocket"
 )
 
 var exposeMetrics = flag.String("metrics", "y", "expose metrics on /debug/metrics")
@@ -107,13 +106,22 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			go handleEreq(msg)
 		}
 	}
+	handleClose(&client)
 	close(client.Quit)
 }
 
 func main() {
 	flag.Parse()
 	log.SetFlags(0)
-
+	/*go influxdb.InfluxDB(
+		metrics.DefaultRegistry, // metrics registry
+		time.Second*10,          // interval
+		"http://localhost:8086", // the InfluxDB url
+		"mydbv",                 // your InfluxDB database
+		"myuser",                // your InfluxDB user
+		"mypassword",            // your InfluxDB password
+	)*/
+	http.HandleFunc("/", handleWebSocket)
 	upgrader.CheckOrigin = func(request *http.Request) bool { return true }
 	log.Println("Starting server on:", *addr)
 	log.Println("Trusted key:", *trustedKey)
@@ -124,7 +132,6 @@ func main() {
 		exp.Exp(metrics.DefaultRegistry)
 		log.Println("Exposing metrics: http://" + *addr + "/debug/metrics")
 	}
-	http.HandleFunc("/", handleWebSocket)
 	err := http.ListenAndServe(*addr, nil)
 	if err != nil {
 		log.Fatalln(err)

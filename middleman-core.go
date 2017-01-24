@@ -13,6 +13,7 @@ import (
 
 // Client is used by the MM server to hold information about client
 // connections from trusted service providers and untrusted clients.
+// +gen * set
 type Client struct {
 	Conn      *websocket.Conn
 	Outbox    chan []byte
@@ -68,15 +69,19 @@ func Marshal(message *Message) []byte {
 	b.Write([]byte(" "))
 	b.Write([]byte(message.Key))
 	b.Write([]byte("\r\n"))
-	for k := range message.Header {
-		for _, v := range message.Header[k] {
-			b.Write([]byte(k))
-			b.Write([]byte(": "))
-			b.Write([]byte(v))
-			b.Write([]byte("\r\n"))
+	if message.Header != nil {
+		for k := range message.Header {
+			for _, v := range message.Header[k] {
+				b.Write([]byte(k))
+				b.Write([]byte(": "))
+				b.Write([]byte(v))
+				b.Write([]byte("\r\n"))
+			}
 		}
 	}
+
 	b.Write([]byte("\r\n"))
 	b.Write(message.Body)
+	b.WriteString("\r\n.\r\n")
 	return b.Bytes()
 }
