@@ -36,7 +36,6 @@ func handleOutgoing(client *middleman.Client) {
 			}
 		}
 	}
-	log.Println("Sender has finished.")
 }
 
 func handleWebSocket(w http.ResponseWriter, r *http.Request) {
