@@ -8,6 +8,7 @@ import (
 	"github.com/gorilla/websocket"
 	metrics "github.com/rcrowley/go-metrics"
 	"github.com/rcrowley/go-metrics/exp"
+	"github.com/rs/xid"
 	"github.com/simonwittber/middleman"
 )
 
@@ -59,6 +60,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	client := middleman.Client{}
 	client.Conn = c
 	client.Outbox = make(chan []byte)
+	client.GUID = xid.New().String()
 	key := string(payload)
 	client.IsTrusted = key == *trustedKey
 	log.Println("New Client", client)
@@ -67,11 +69,12 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	client.Conn.WriteMessage(websocket.TextMessage, []byte("MM OK"))
+	client.Conn.WriteMessage(websocket.TextMessage, []byte(client.GUID))
 	client.Quit = make(chan bool)
 	counter.Inc(1)
 	defer counter.Inc(-1)
 	go handleOutgoing(&client)
-
+	subToPrivateChannel(&client)
 	for {
 		mt, payload, err := c.ReadMessage()
 		if err != nil {
@@ -88,6 +91,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 		msg.Client = &client
+		msg.Header.Set("cid", msg.Client.GUID)
 		log.Println("MSG:", msg)
 		switch msg.Cmd {
 		case "PUB":
@@ -106,6 +110,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			go handleEreq(msg)
 		}
 	}
+	log.Println("Bye", client)
 	handleClose(&client)
 	close(client.Quit)
 }

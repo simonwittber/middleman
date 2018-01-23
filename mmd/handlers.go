@@ -41,12 +41,21 @@ func addSubscription(client *middleman.Client, key string) bool {
 	keys, ok := subscriptions[client]
 	if !ok {
 		keys = atomicstring.NewStringSet()
+		subscriptions[client] = keys
 	}
-	if keys.Contains(key) {
-		return false
+	if !keys.Contains(key) {
+		keys.Add(key)
 	}
-	keys.Add(key)
 	return true
+}
+
+func subToPrivateChannel(client *middleman.Client) {
+	var key = "MSG:" + client.GUID
+	if addSubscription(client, key) {
+		bc := getBroadcastChannel(key)
+		log.Println("Subscribing to", key)
+		bc.Add(client)
+	}
 }
 
 func handleSub(message *middleman.Message) {
@@ -59,6 +68,7 @@ func handleSub(message *middleman.Message) {
 			bc := getBroadcastChannel(message.Key)
 			log.Println("Subscribing to", message.Key)
 			bc.Add(message.Client)
+			log.Println("BC:", message.Key, bc)
 		}
 	})
 }
@@ -100,7 +110,7 @@ func handleReq(message *middleman.Message) {
 			sendError(message.Client, "No responder for", message)
 		} else {
 			reqID := atomic.AddUint64(&requestId, 1)
-			message.Header.Set("ReqID", string(reqID))
+			message.Header.Set("rid", strconv.FormatUint(reqID, 10))
 			requestMutex.Lock()
 			requests[reqID] = message.Client
 			requestMutex.Unlock()
@@ -115,8 +125,7 @@ func handleRes(message *middleman.Message) {
 		if !messageIsTrusted(message, safePubKeys) {
 			sendError(message.Client, "Not trusted", message)
 		}
-
-		reqID, err := strconv.ParseUint(message.Header.Get("ReqID"), 10, 64)
+		reqID, err := strconv.ParseUint(message.Header.Get("rid"), 10, 64)
 		if err != nil {
 			return
 		}
@@ -129,7 +138,7 @@ func handleRes(message *middleman.Message) {
 		if !ok {
 			sendError(message.Client, "No client for request ID ", message)
 		} else {
-			message.Header.Del("ReqID")
+			message.Header.Del("rid")
 			client.Outbox <- middleman.Marshal(message)
 		}
 	})
@@ -197,6 +206,7 @@ func handleClose(client *middleman.Client) {
 	subMutex.Lock()
 	defer subMutex.Unlock()
 	keys, ok := subscriptions[client]
+	log.Println("Disconnect", subscriptions, client, keys, ok)
 	if ok {
 		for k := range keys.Iter() {
 			c, ok := subscribers.Get(k)

@@ -15,35 +15,29 @@ class ServiceProvider:
         self.public_pub_events = []
     #------------------------------------------------------------------------ 
     async def subscribe_to_events(self): 
+        prefix = self.__class__.__name__ + "."
         for name in dir(self):
             value = getattr(self, name)
             if callable(value):
+                ev = prefix + name[4:]
                 if name.startswith("PUB_"): 
-                    ev = name[4:]
                     print("Subscribing to External event: " + ev)
                     self.pub_handlers[ev] = value
                     await self.epub(ev)
                 if name.startswith("REQ_"): 
-                    ev = name[4:]
                     print("Responding to External request: " + ev)
                     self.req_handlers[ev] = value
                     await self.ereq(ev)
                 if name.startswith("pub_"): 
-                    ev = name[4:]
                     print("Subscribing to Internal event: " + ev)
                     self.pub_handlers[ev] = value
                 if name.startswith("req_"): 
-                    ev = name[4:]
                     print("Responding to Internal event: " + ev)
                     self.req_handlers[ev] = value
                 if name.startswith("task_"): 
                     print("Starting Task:", name[5:])
                     asyncio.ensure_future(value())
-        for ev in self.public_pub_events:
-            await self.esub(ev)
         for k in self.pub_handlers.keys():
-            await self.sub(k)
-        for k in self.req_handlers.keys():
             await self.sub(k)
     #------------------------------------------------------------------------ 
     async def ereq(self, name):
@@ -66,7 +60,7 @@ class ServiceProvider:
     #------------------------------------------------------------------------ 
     async def req(self, name, headers=None, **msg):
         if headers is None: headers = {}
-        request_id = headers["ReqID"] = uuid.uuid1().hex
+        request_id = headers["rid"] = uuid.uuid1().hex
         future = self.requests[request_id] = asyncio.Future()
         await self.ws.outbox.put("REQ "+name+"\n"+self.headerText(headers)+"\n"+self.encode(msg))
         return await future
@@ -82,7 +76,7 @@ class ServiceProvider:
         return await self.req_handlers[name](headers, self.decode(stream))
     #------------------------------------------------------------------------ 
     async def recv_res(self, name, headers, stream):
-        future = self.requests.pop(headers["ReqID"])
+        future = self.requests.pop(headers["rid"])
         future.set_result(self.decode(stream))
     #------------------------------------------------------------------------ 
     def headerText(self, headers):
@@ -98,14 +92,17 @@ class ServiceProvider:
                 header = stream.readline().strip()
                 if header == "" or header is None: break
                 parts = header.split(":")
-                headers[parts[0].strip()] = ":".join(parts[1:]).strip()
-            if cmd == "REQ":
-                result = await self.recv_req(name, headers, stream)
-                await self.res(name, headers, result)
-            elif cmd == "PUB":
-                await self.recv_pub(name, headers, stream)
-            elif cmd == "RES":
-                await self.recv_res(name, headers, stream)
+                headers[parts[0].strip().lower()] = ":".join(parts[1:]).strip()
+            try:
+                if cmd == "REQ":
+                    result = await self.recv_req(name, headers, stream)
+                    await self.res(name, headers, result)
+                elif cmd == "PUB":
+                    await self.recv_pub(name, headers, stream)
+                elif cmd == "RES":
+                    await self.recv_res(name, headers, stream)
+            except Exception as e:
+                await self.pub("MSG:"+headers["cid"], type=e.__class__.__name__, msg=str(e))
         except Exception as e:
             print(type(e), e)
             raise
@@ -128,6 +125,8 @@ async def service(service_provider_class):
     ok = await ws.recv()
     if ok != "MM OK":
         raise Exception("Bad Key")
+    myConnID = await ws.recv()
+    print("My Conn ID: " + myConnID)
     ws.outbox = asyncio.Queue()
     send_task = asyncio.ensure_future(handle_outgoing_queue(ws))
     sp = service_provider_class()

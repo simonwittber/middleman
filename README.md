@@ -1,5 +1,5 @@
 # middleman
-A PubSub &amp; Request/Response WebSocket Server, in Go.
+A PubSub & Request/Response WebSocket Server, in Go.
 
 
 MiddleMan distributes messages between connected services and clients. It

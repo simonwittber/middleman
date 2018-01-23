@@ -19,6 +19,8 @@ type Client struct {
 	Outbox    chan []byte
 	IsTrusted bool
 	Quit      chan bool
+	GUID      string
+	Header    textproto.MIMEHeader
 }
 
 // Message represents the protocol used for MM communication over the
