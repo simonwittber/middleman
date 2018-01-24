@@ -1,8 +1,8 @@
 from collections import defaultdict
 import serviceprovider
-import jsonservice
+import textservice
 
-class Chat(serviceprovider.ServiceProvider, jsonservice.JsonService):
+class Chat(serviceprovider.ServiceProvider, textservice.TextService):
     rooms = defaultdict(set)
     clients = defaultdict(set)
 
@@ -26,11 +26,10 @@ class Chat(serviceprovider.ServiceProvider, jsonservice.JsonService):
         print("PUB");
         conn = headers["cid"]
         room = headers["room"]
-        headers["command"] = "Say"
         headers["from"] = conn
         print(self.rooms)
         for i in self.rooms[room]:
-            await self.pub("MSG:"+i, headers=headers, msg=msg)
+            await self.pub("MSG:"+i, headers, msg)
         
 
 

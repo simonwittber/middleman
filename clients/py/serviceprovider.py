@@ -15,30 +15,23 @@ class ServiceProvider:
         self.public_pub_events = []
     #------------------------------------------------------------------------ 
     async def subscribe_to_events(self): 
-        prefix = self.__class__.__name__ + "."
+        prefix = self.__class__.__name__
         for name in dir(self):
             value = getattr(self, name)
             if callable(value):
-                ev = prefix + name[4:]
+                ev = name[4:]
                 if name.startswith("PUB_"): 
                     print("Subscribing to External event: " + ev)
                     self.pub_handlers[ev] = value
-                    await self.epub(ev)
                 if name.startswith("REQ_"): 
                     print("Responding to External request: " + ev)
                     self.req_handlers[ev] = value
-                    await self.ereq(ev)
-                if name.startswith("pub_"): 
-                    print("Subscribing to Internal event: " + ev)
-                    self.pub_handlers[ev] = value
-                if name.startswith("req_"): 
-                    print("Responding to Internal event: " + ev)
-                    self.req_handlers[ev] = value
-                if name.startswith("task_"): 
+                if name.startswith("TASK_"): 
                     print("Starting Task:", name[5:])
                     asyncio.ensure_future(value())
-        for k in self.pub_handlers.keys():
-            await self.sub(k)
+        await self.epub(prefix)
+        await self.ereq(prefix)
+        await self.sub(prefix)
     #------------------------------------------------------------------------ 
     async def ereq(self, name):
         await self.ws.outbox.put("EREQ "+name+"\n\n")
@@ -49,7 +42,7 @@ class ServiceProvider:
     async def esub(self, name):
         await self.ws.outbox.put("ESUB "+name+"\n\n")
     #------------------------------------------------------------------------ 
-    async def pub(self, name, headers=None, **msg):
+    async def pub(self, name, headers, msg):
         await self.ws.outbox.put("PUB "+name+"\n"+self.headerText(headers)+"\n"+self.encode(msg))
     #------------------------------------------------------------------------ 
     async def sub(self, name, headers=None):
@@ -58,7 +51,7 @@ class ServiceProvider:
     async def uns(self, name, headers=None):
         await self.ws.outbox.put("UNS "+name+"\n"+self.headerText(headers)+"\n")
     #------------------------------------------------------------------------ 
-    async def req(self, name, headers=None, **msg):
+    async def req(self, name, headers, msg):
         if headers is None: headers = {}
         request_id = headers["rid"] = uuid.uuid1().hex
         future = self.requests[request_id] = asyncio.Future()
@@ -70,10 +63,12 @@ class ServiceProvider:
         await self.ws.outbox.put("RES "+name+"\n"+self.headerText(headers)+"\n"+self.encode(msg))
     #------------------------------------------------------------------------ 
     async def recv_pub(self, name, headers, stream):
-        await self.pub_handlers[name](headers, self.decode(stream))
+        method = headers["cmd"]
+        await self.pub_handlers[method](headers, self.decode(stream))
     #------------------------------------------------------------------------ 
     async def recv_req(self, name, headers, stream):
-        return await self.req_handlers[name](headers, self.decode(stream))
+        method = headers["cmd"]
+        return await self.req_handlers[method](headers, self.decode(stream))
     #------------------------------------------------------------------------ 
     async def recv_res(self, name, headers, stream):
         future = self.requests.pop(headers["rid"])
@@ -102,7 +97,7 @@ class ServiceProvider:
                 elif cmd == "RES":
                     await self.recv_res(name, headers, stream)
             except Exception as e:
-                await self.pub("MSG:"+headers["cid"], type=e.__class__.__name__, msg=str(e))
+                await self.pub("MSG:"+headers["cid"], dict(type=e.__class__.__name__, msg=str(e)), None)
         except Exception as e:
             print(type(e), e)
             raise
