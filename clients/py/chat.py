@@ -16,7 +16,6 @@ class Chat(serviceprovider.ServiceProvider, textservice.TextService):
         self.rooms[room].remove(conn)
 
     async def REQ_Join(self, headers, msg):
-        print("REQ");
         conn = headers["cid"]
         room = headers["room"]
         self.clients[conn].add(room)

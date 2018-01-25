@@ -68,7 +68,6 @@ func handleSub(message *middleman.Message) {
 			bc := getBroadcastChannel(message.Key)
 			log.Println("Subscribing to", message.Key)
 			bc.Add(message.Client)
-			log.Println("BC:", message.Key, bc)
 		}
 	})
 }
