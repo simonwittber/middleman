@@ -13,7 +13,7 @@ import (
 )
 
 var exposeMetrics = flag.String("metrics", "y", "expose metrics on /debug/metrics")
-var addr = flag.String("addr", "localhost:8765", "service address")
+var addr = flag.String("addr", "0.0.0.0:8765", "service address")
 var trustedKey = flag.String("trustedkey", "xyzzy", "trusted client key")
 var superKey = flag.String("superkey", "jabberwocky", "trusted super key, receives all messages")
 var untrustedKey = flag.String("publickey", "plugh", "untrusted, public client key")
@@ -37,7 +37,6 @@ func handleOutgoing(client *middleman.Client) {
 			}
 		}
 	}
-	log.Println("Sender has finished.")
 }
 
 func handleWebSocket(w http.ResponseWriter, r *http.Request) {
@@ -92,7 +91,6 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		}
 		msg.Client = &client
 		msg.Header.Set("cid", msg.Client.GUID)
-		log.Println("MSG:", msg)
 		switch msg.Cmd {
 		case "PUB":
 			go handlePub(msg)
