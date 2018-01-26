@@ -25,7 +25,7 @@ class Auth(serviceprovider.ServiceProvider, textservice.TextService):
             localHash = hashlib.md5((salt + p).encode()).hexdigest()
             if h == localHash:
                 headers["auth"] = "Y"
-                await self.internal("UID", dict(cid=conn, uid=hashlib.md5(e.encode()).hexdigest()))
+                await self.internal("UID", dict(cid=conn, setuid=hashlib.md5(e.encode()).hexdigest()))
             else:
                 headers["auth"] = "N"
         else:
@@ -36,9 +36,9 @@ class Auth(serviceprovider.ServiceProvider, textservice.TextService):
         h = headers["hash"]
         e = headers["email"]
         if e in self.users:
-            headers["register"] = "already registered"
+            headers["register"] = "N"
         else:
-            headers["register"] = "registered"
+            headers["register"] = "Y"
             self.users[e] = h
 
 

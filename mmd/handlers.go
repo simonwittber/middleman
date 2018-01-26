@@ -88,7 +88,7 @@ func handleInt(message *middleman.Message) {
 		switch message.Key {
 		case "UID":
 			var cid = message.Header.Get("cid")
-			var uid = message.Header.Get("uid")
+			var uid = message.Header.Get("setuid")
 			ClientMap[cid].UID = uid
 		}
 	})
