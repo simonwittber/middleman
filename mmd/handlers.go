@@ -11,6 +11,8 @@ import (
 	"github.com/simonwittber/middleman"
 )
 
+type SubscriptionMap map[*middleman.Client]atomicstring.StringSet
+
 var safePubKeys = atomicstring.NewStringSet()
 var safeSubKeys = atomicstring.NewStringSet()
 var subscribers = middleman.NewClientSetAtomicMap()
@@ -19,12 +21,20 @@ var respondersMutex sync.Mutex
 var requestId uint64 = 0
 var requests = make(map[uint64]*middleman.Client)
 var requestMutex sync.Mutex
-
-type SubscriptionMap map[*middleman.Client]atomicstring.StringSet
-
 var subMutex sync.Mutex
-
+var ClientMap = make(map[string]*middleman.Client)
 var subscriptions = make(SubscriptionMap)
+
+func RemoveClient(guid string) {
+	var _, ok = ClientMap[guid]
+	if ok {
+		delete(ClientMap, guid)
+	}
+}
+
+func AddClient(client *middleman.Client) {
+	ClientMap[client.GUID] = client
+}
 
 func getBroadcastChannel(key string) middleman.ClientSet {
 	bc, ok := subscribers.Get(key)
@@ -68,6 +78,18 @@ func handleSub(message *middleman.Message) {
 			bc := getBroadcastChannel(message.Key)
 			log.Println("Subscribing to", message.Key)
 			bc.Add(message.Client)
+		}
+	})
+}
+
+func handleInt(message *middleman.Message) {
+	timer := metrics.GetOrRegisterTimer("handlers.INT", nil)
+	timer.Time(func() {
+		switch message.Key {
+		case "UID":
+			var cid = message.Header.Get("cid")
+			var uid = message.Header.Get("uid")
+			ClientMap[cid].UID = uid
 		}
 	})
 }

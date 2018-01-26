@@ -20,6 +20,7 @@ type Client struct {
 	IsTrusted bool
 	Quit      chan bool
 	GUID      string
+	UID       string
 	Header    textproto.MIMEHeader
 }
 

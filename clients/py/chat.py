@@ -2,6 +2,7 @@ from collections import defaultdict
 import serviceprovider
 import textservice
 
+
 class Chat(serviceprovider.ServiceProvider, textservice.TextService):
     rooms = defaultdict(set)
     clients = defaultdict(set)

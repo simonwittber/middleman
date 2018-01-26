@@ -42,6 +42,9 @@ class ServiceProvider:
     async def esub(self, name):
         await self.ws.outbox.put("ESUB "+name+"\n\n")
     #------------------------------------------------------------------------ 
+    async def internal(self, name, headers):
+        await self.ws.outbox.put("INT "+name+"\n"+self.headerText(headers)+"\n")
+    #------------------------------------------------------------------------ 
     async def pub(self, name, headers, msg):
         await self.ws.outbox.put("PUB "+name+"\n"+self.headerText(headers)+"\n"+self.encode(msg))
     #------------------------------------------------------------------------ 
@@ -97,7 +100,7 @@ class ServiceProvider:
                 elif cmd == "RES":
                     await self.recv_res(name, headers, stream)
             except Exception as e:
-                await self.pub("MSG:"+headers["cid"], dict(type=e.__class__.__name__, msg=str(e)), None)
+                await self.pub("MSG:"+headers["cid"], dict(cmd="error", type=e.__class__.__name__, msg=str(e)), None)
         except Exception as e:
             print(type(e), e)
             raise

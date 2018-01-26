@@ -25,6 +25,7 @@ func handleOutgoing(client *middleman.Client) {
 		select {
 		case _, _ = <-client.Quit:
 			log.Println("client.Quit")
+			RemoveClient(client.GUID)
 			return
 		case msg, ok := <-client.Outbox:
 			if !ok {
@@ -69,6 +70,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 	client.Conn.WriteMessage(websocket.TextMessage, []byte("MM OK"))
 	client.Conn.WriteMessage(websocket.TextMessage, []byte(client.GUID))
+	AddClient(&client)
 	client.Quit = make(chan bool)
 	counter.Inc(1)
 	defer counter.Inc(-1)
@@ -90,7 +92,12 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 		msg.Client = &client
+		if !client.IsTrusted {
+			msg.Header.Del("cid")
+			msg.Header.Del("uid")
+		}
 		msg.Header.Set("cid", msg.Client.GUID)
+		msg.Header.Set("uid", msg.Client.UID)
 		switch msg.Cmd {
 		case "PUB":
 			go handlePub(msg)
@@ -106,6 +113,10 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			go handleEsub(msg)
 		case "EREQ":
 			go handleEreq(msg)
+		case "INT":
+			if client.IsTrusted {
+				go handleInt(msg)
+			}
 		}
 	}
 	log.Println("Bye", client)
