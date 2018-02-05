@@ -42,4 +42,4 @@ class Auth(serviceprovider.ServiceProvider, textservice.TextService):
             self.users[e] = h
 
 
-serviceprovider.run(Auth)
+serviceprovider.run(Auth, require_uid=False)

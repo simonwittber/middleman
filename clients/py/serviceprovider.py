@@ -7,12 +7,13 @@ import uuid
 SERVER_KEY = "xyzzy"
 #-----------------------------------------------------------------------
 class ServiceProvider:
-    def init(self, ws):
+    def init(self, ws, require_uid):
         self.requests = {}
         self.pub_handlers = {}
         self.req_handlers = {}
         self.ws = ws
         self.public_pub_events = []
+        self.require_uid = require_uid
     #------------------------------------------------------------------------ 
     async def subscribe_to_events(self): 
         prefix = self.__class__.__name__
@@ -91,7 +92,11 @@ class ServiceProvider:
                 if header == "" or header is None: break
                 parts = header.split(":")
                 headers[parts[0].strip().lower()] = ":".join(parts[1:]).strip()
+            uid = headers.get("uid", "")
+            if uid == "": uid = None
             try:
+                if self.require_uid and uid is None: 
+                    raise Exception("No UID")
                 if cmd == "REQ":
                     result = await self.recv_req(name, headers, stream)
                     await self.res(name, headers, result)
@@ -110,7 +115,7 @@ async def handle_outgoing_queue(ws):
         msg = await ws.outbox.get()
         await ws.send(msg + "\r\n.\r\n")
 #-----------------------------------------------------------------------
-async def service(service_provider_class):
+async def service(service_provider_class, require_uid=True):
     ws = None
     while ws is None:
         try:
@@ -128,7 +133,7 @@ async def service(service_provider_class):
     ws.outbox = asyncio.Queue()
     send_task = asyncio.ensure_future(handle_outgoing_queue(ws))
     sp = service_provider_class()
-    sp.init(ws)
+    sp.init(ws, require_uid)
     await sp.subscribe_to_events()
     while True:
         msg = await ws.recv()
@@ -139,7 +144,7 @@ async def service(service_provider_class):
     send_task.cancel()
     await ws.close()
 #-----------------------------------------------------------------------
-def run(service_provider_class, *tasks):
+def run(service_provider_class, *tasks, require_uid=True):
     for t in tasks:
         asyncio.ensure_future(t())
-    asyncio.get_event_loop().run_until_complete(service(service_provider_class))
+    asyncio.get_event_loop().run_until_complete(service(service_provider_class, require_uid=require_uid))

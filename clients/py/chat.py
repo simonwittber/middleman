@@ -33,6 +33,4 @@ class Chat(serviceprovider.ServiceProvider, textservice.TextService):
         
 
 
-
-
-serviceprovider.run(Chat)
+serviceprovider.run(Chat, require_uid=True)
