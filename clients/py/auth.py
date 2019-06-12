@@ -11,27 +11,26 @@ class Auth(serviceprovider.ServiceProvider, textservice.TextService):
 
     async def REQ_Salt(self, headers, msg):
         conn = headers["cid"]
-        headers["salt"] = self.salts[conn] = hashlib.md5(os.urandom(16)).hexdigest()
-        
+        headers["salt"] = self.salts[conn] = hashlib.md5(
+            os.urandom(16)).hexdigest()
 
     async def REQ_Verify(self, headers, msg):
         conn = headers["cid"]
         e = headers["email"]
         h = headers["hash"]
         salt = self.salts[conn]
-        #lookup pass for user
+        # lookup pass for user
         if e in self.users:
             p = self.users[e]
             localHash = hashlib.md5((salt + p).encode()).hexdigest()
             if h == localHash:
                 headers["auth"] = "Y"
-                await self.internal("UID", dict(cid=conn, setuid=hashlib.md5(e.encode()).hexdigest()))
+                await self.internal("UID", dict(forcid=conn, setuid=hashlib.md5(e.encode()).hexdigest()))
             else:
                 headers["auth"] = "N"
         else:
             headers["auth"] = "N"
 
-    
     async def REQ_Register(self, headers, msg):
         h = headers["hash"]
         e = headers["email"]

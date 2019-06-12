@@ -15,22 +15,23 @@ class Chat(serviceprovider.ServiceProvider, textservice.TextService):
         room = headers["room"]
         self.clients[conn].remove(room)
         self.rooms[room].remove(conn)
+        return "OK"
 
     async def REQ_Join(self, headers, msg):
         conn = headers["cid"]
         room = headers["room"]
         self.clients[conn].add(room)
         self.rooms[room].add(conn)
+        return "OK"
 
     async def PUB_Say(self, headers, msg):
-        print("PUB");
+        print("PUB")
         conn = headers["cid"]
         room = headers["room"]
         headers["from"] = conn
         print(self.rooms)
         for i in self.rooms[room]:
             await self.pub("MSG:"+i, headers, msg)
-        
 
 
 serviceprovider.run(Chat, require_uid=True)

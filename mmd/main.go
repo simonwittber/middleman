@@ -92,10 +92,6 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 		msg.Client = &client
-		if !client.IsTrusted {
-			msg.Header.Del("cid")
-			msg.Header.Del("uid")
-		}
 		msg.Header.Set("cid", msg.Client.GUID)
 		msg.Header.Set("uid", msg.Client.UID)
 		switch msg.Cmd {
@@ -116,6 +112,8 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		case "INT":
 			if client.IsTrusted {
 				go handleInt(msg)
+			} else {
+				log.Println("Untrusted Internal msg", msg)
 			}
 		}
 	}
