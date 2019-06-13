@@ -25,7 +25,6 @@ class Chat(serviceprovider.ServiceProvider, textservice.TextService):
         return "OK"
 
     async def PUB_Say(self, headers, msg):
-        print("PUB")
         conn = headers["cid"]
         room = headers["room"]
         headers["from"] = conn

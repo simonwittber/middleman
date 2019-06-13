@@ -85,7 +85,6 @@ func handleSub(message *middleman.Message) {
 func handleInt(message *middleman.Message) {
 	timer := metrics.GetOrRegisterTimer("handlers.INT", nil)
 	timer.Time(func() {
-		log.Println("INT", message.Header.Get("setuid"))
 		switch message.Key {
 		case "UID":
 			var cid = message.Header.Get("forcid")
