@@ -14,6 +14,7 @@ import (
 
 var exposeMetrics = flag.String("metrics", "y", "expose metrics on /debug/metrics")
 var addr = flag.String("addr", "0.0.0.0:8765", "service address")
+var internalAddr = flag.String("internal", "127.0.0.1:8764", "internal address")
 var trustedKey = flag.String("trustedkey", "xyzzy", "trusted client key")
 var superKey = flag.String("superkey", "jabberwocky", "trusted super key, receives all messages")
 var untrustedKey = flag.String("publickey", "plugh", "untrusted, public client key")
@@ -122,6 +123,13 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	close(client.Quit)
 }
 
+func internalService() {
+	err := http.ListenAndServe(*internalAddr, nil)
+	if err != nil {
+		log.Fatalln(err)
+	}
+}
+
 func main() {
 	flag.Parse()
 	log.SetFlags(0)
@@ -144,8 +152,11 @@ func main() {
 		exp.Exp(metrics.DefaultRegistry)
 		log.Println("Exposing metrics: http://" + *addr + "/debug/metrics")
 	}
-	err := http.ListenAndServe(*addr, nil)
+	go internalService()
+	err := http.ListenAndServeTLS(*addr, "server.crt", "server.key", nil)
 	if err != nil {
 		log.Fatalln(err)
 	}
 }
+
+

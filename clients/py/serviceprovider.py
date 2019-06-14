@@ -125,7 +125,7 @@ async def service(service_provider_class, require_uid=True):
     ws = None
     while ws is None:
         try:
-            ws = await websockets.connect('ws://127.0.0.1:8765/')
+            ws = await websockets.connect('ws://127.0.0.1:8764/')
         except ConnectionRefusedError as e:
             print(e)
             await asyncio.sleep(5)
